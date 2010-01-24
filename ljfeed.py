@@ -99,7 +99,7 @@ def fmt_feed(ljuser, friendspage):
     """
     FEED_ENTRY = """
         <entry>
-            <title>%(subject_raw)s</title>
+            <title>%(postername)s @ %(journalname)s / %(subject_raw)s</title>
             <link href="%(journalurl)s/%(ditemid)s.html" rel="alternate"/>
             <id>%(journalurl)s/%(ditemid)s.html</id>
             <updated>%(_logtime)s</updated>
@@ -121,7 +121,7 @@ def fmt_feed(ljuser, friendspage):
                                '_mtime': fmt_atom_time(mtime)})
 
     for entry in friendspage['entries']:
-        same_keys = ('subject_raw', 'journalurl', 'ditemid', 'postername')
+        same_keys = ('subject_raw', 'journalurl', 'ditemid', 'postername', 'journalname')
         vars = dict( (key, entry[key]) for key in same_keys )
         vars['_logtime'] = fmt_atom_time(entry['logtime'])
         vars['_event_raw'] = fmt_ljevent_raw(entry['event_raw'])
