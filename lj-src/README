@@ -1,0 +1,13 @@
+These files were downloaded from public sources found via Google™ search
+engine.
+
+$ date
+Sun Jan 24 14:04:36 UTC 2010
+
+$ wget -O ljprotocol.sixapart.pl \
+> http://code.sixapart.com/svn/livejournal/trunk/cgi-bin/ljprotocol.pl
+[...]
+
+$ wget -O ljprotocol.livejournal.pl \
+> http://code.livejournal.org/trac/livejournal/browser/trunk/cgi-bin/ljprotocol.pl?format=txt
+[...]
