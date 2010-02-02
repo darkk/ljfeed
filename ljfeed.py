@@ -74,7 +74,7 @@ def fmt_ljevent_raw(event_raw):
 
     def fmt_ljuser(match):
         ljuser = match.group(1).replace('_', '-')
-        return ''.join(('<a href="', ljuser, '.livejournal.com/">',
+        return ''.join(('<a href="http://', ljuser, '.livejournal.com/">',
                         '<img src="http://l-stat.livejournal.com/img/userinfo.gif"/>',
                         ljuser, '</a>'))
     event_raw = re.sub(r'<lj\s+user="?([a-zA-Z0-9_-]+)"?.*?>', fmt_ljuser, event_raw)
