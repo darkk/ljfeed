@@ -88,6 +88,20 @@ def fmt_ljevent_raw(event_raw):
     return event_raw
 
 
+def fmt_title(entry):
+    warning_mark = '\xe2\x9a\xa0 ' # \u26a0 + SPACE
+    postername = entry['postername']
+    journalname = entry['journalname']
+    subject_raw = str(entry['subject_raw']) # it may be xmlrpclib.Binary instance
+    if not subject_raw:
+        subject_raw = '(no subject)'
+    private_mark = warning_mark if (entry['security'] != 'public') else ''
+    if postername == journalname:
+        return "%s / %s%s" % (postername, private_mark, subject_raw)
+    else:
+        return "%s @ %s / %s%s" % (postername, journalname, private_mark, subject_raw)
+
+
 def fmt_feed(ljuser, friendspage):
     """ returns: (feed_data, mtime) """
     FEED_PREFIX = """<?xml version="1.0" encoding="utf-8"?>
@@ -99,7 +113,7 @@ def fmt_feed(ljuser, friendspage):
     """
     FEED_ENTRY = """
         <entry>
-            <title>%(postername)s @ %(journalname)s / %(subject_raw)s</title>
+            <title>%(_title)s</title>
             <link href="%(journalurl)s/%(ditemid)s.html" rel="alternate"/>
             <id>%(journalurl)s/%(ditemid)s.html</id>
             <updated>%(_logtime)s</updated>
@@ -125,6 +139,7 @@ def fmt_feed(ljuser, friendspage):
         vars = dict( (key, entry[key]) for key in same_keys )
         vars['_logtime'] = fmt_atom_time(entry['logtime'])
         vars['_event_raw'] = fmt_ljevent_raw(entry['event_raw'])
+        vars['_title'] = fmt_title(entry)
         for k in vars.keys():
             vars[k] = saxutils.escape(str(vars[k]))
         feed.append(FEED_ENTRY % vars)
