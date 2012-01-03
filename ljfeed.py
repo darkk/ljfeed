@@ -31,6 +31,10 @@ import re
 import uuid
 import xmlrpclib
 import xml.sax.saxutils as saxutils
+from optparse import OptionParser
+import os
+import sys
+import tempfile
 
 
 DEBUG = False
@@ -87,6 +91,9 @@ def fmt_ljevent_raw(event_raw):
 
     return event_raw
 
+def is_private(entry):
+    return entry['security'] != 'public'
+
 
 def fmt_title(entry):
     warning_mark = '\xe2\x9a\xa0 ' # \u26a0 + SPACE
@@ -95,14 +102,14 @@ def fmt_title(entry):
     subject_raw = str(entry['subject_raw']) # it may be xmlrpclib.Binary instance
     if not subject_raw:
         subject_raw = '(no subject)'
-    private_mark = warning_mark if (entry['security'] != 'public') else ''
+    private_mark = warning_mark if is_private(entry) else ''
     if postername == journalname:
         return "%s / %s%s" % (postername, private_mark, subject_raw)
     else:
         return "%s @ %s / %s%s" % (postername, journalname, private_mark, subject_raw)
 
 
-def fmt_feed(ljuser, friendspage):
+def fmt_feed(ljuser, friendspage_entries):
     """ returns: (feed_data, mtime) """
     FEED_PREFIX = """<?xml version="1.0" encoding="utf-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">
@@ -129,12 +136,12 @@ def fmt_feed(ljuser, friendspage):
 
     feed = []
 
-    mtime = max(e['logtime'] for e in friendspage['entries'])
+    mtime = max(e['logtime'] for e in friendspage_entries)
     feed.append(FEED_PREFIX % {'_ljuser': ljuser,
                                '_random_uuid': uuid.uuid4(),
                                '_mtime': fmt_atom_time(mtime)})
 
-    for entry in friendspage['entries']:
+    for entry in friendspage_entries:
         same_keys = ('subject_raw', 'journalurl', 'ditemid', 'postername', 'journalname')
         vars = dict( (key, entry[key]) for key in same_keys )
         vars['_logtime'] = fmt_atom_time(entry['logtime'])
@@ -148,45 +155,50 @@ def fmt_feed(ljuser, friendspage):
 
     return ''.join(feed), mtime
 
+def write_to(output, pair):
+    feed, mtime = pair
+    if os.path.isfile(output) and os.path.getmtime(output) > mtime:
+        if DEBUG:
+            print >>sys.stderr, 'No new entries since', output, 'mtime, leaving it intact.'
+        return
+    # mkstemp creates file with 600, I need (666 & umask), that's why I use mktemp instead of mkstemp
+    tmp = tempfile.mktemp(dir=os.path.dirname(output), prefix=os.path.basename(output))
+    if DEBUG:
+        print >>sys.stderr, 'Using', tmp, 'as temp file'
+    with open(tmp, 'w') as fd:
+        fd.write(feed)
+    os.rename(tmp, output)
 
 def main():
-    from getopt import getopt
-    import sys, os
-    ljuser, password, pass_md5, output = None, None, None, None
+    parser = OptionParser()
+    parser.add_option('-u', '--user', help='Log in as USER')
+    parser.add_option('-p', '--password', help='Log in with PASSWORD')
+    parser.add_option('-P', '--pass_md5', help='Use MD5(password) instead of PASSWORD')
+    parser.add_option('-O', '--output', help='Write full (public+private) feed to OUTPUT file')
+    parser.add_option('-a', '--public', help='Write public feed to PUBLIC file')
+    parser.add_option('-x', '--private', help='Write private-only feed to PRIVATE file')
+    parser.add_option('-v', '--verbose', help='Turn on debugging', action='store_true')
+    opt, args = parser.parse_args()
 
-    opts, extra_args = getopt(sys.argv[1:], 'u:p:P:O:', ['user=', 'password=', 'pass_md5=', 'output='])
-    for key, value in opts:
-        if key in ('-u', '--user'):
-            ljuser = value
-        elif key in ('-O', '--output'):
-            output = value
-        elif key in ('-p', '--password'):
-            password = value
-        elif key in ('-P', '--pass_md5'):
-            pass_md5 = value
+    if not opt.user or not (opt.password or opt.pass_md5):
+        parser.error("I need both --user and some form of password (--password or --pass_md5)")
+    if not (opt.output or opt.public or opt.private):
+        parser.error("I need at least one output (--output, --public or --private)")
+    if opt.verbose:
+        global DEBUG
+        DEBUG = True
 
-    if not ljuser or (not password and not pass_md5):
-        print "Usage: %s --user <ljuser> (--password <p@s$w0rd>|--pass_md5 <ab84...7c>) [--output ljuser.xml] " % sys.argv[0]
-        sys.exit(1)
+    friendspage = getfriendspage(opt.user, opt.password, opt.pass_md5)
+    entries = friendspage['entries']
 
-    if not output:
-        output = ljuser + '.xml'
-
-    friendspage = getfriendspage(ljuser, password=password, pass_md5=pass_md5)
-    feed, mtime = fmt_feed(ljuser, friendspage)
-
-    if os.path.isfile(output):
-        if os.path.getmtime(output) > mtime:
-            return
-        else:
-            os.unlink(output)
-    with open(output, 'w') as fd:
-        fd.write(feed)
-    return
-
+    if opt.output:
+        write_to(opt.output, fmt_feed(opt.user, entries))
+    if opt.public:
+        write_to(opt.public, fmt_feed(opt.user, filter(lambda x: not is_private(x), entries)))
+    if opt.private:
+        write_to(opt.private, fmt_feed(opt.user, filter(is_private, entries)))
 
 if __name__ == '__main__':
     main()
-
 
 # vim:set tabstop=4 softtabstop=4 shiftwidth=4 expandtab: 
